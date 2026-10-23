@@ -4,6 +4,7 @@ import numpy as np
 import time
 import io
 import wave
+import base64
 
 # ==========================================
 # PAGE CONFIG & PROFESSIONAL THEMING
@@ -46,10 +47,10 @@ st.caption("Developed for Jio Platforms Ltd. OJT Case Study | Multi-Agent Orches
 st.divider()
 
 # ==========================================
-# AUDIO PREVIEW HELPER FUNCTION
+# AUDIO PREVIEW HELPER FUNCTION (BASE64)
 # ==========================================
 def get_synthetic_audio_bytes(duration=2.0, freq=440, sample_rate=22050):
-    """Generates an in-memory WAV audio preview stream for playback."""
+    """Generates an in-memory WAV audio preview stream formatted as a base64 string for browser playback."""
     t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
     audio_data = 0.5 * np.sin(2 * np.pi * freq * t)
     audio_data = (audio_data * 32767).astype(np.int16)
@@ -61,7 +62,10 @@ def get_synthetic_audio_bytes(duration=2.0, freq=440, sample_rate=22050):
         wf.setframerate(sample_rate)
         wf.writeframes(audio_data.tobytes())
     wav_io.seek(0)
-    return wav_io.read()
+    
+    # Encode to base64 so HTML5 audio renders reliably on Streamlit Cloud
+    b64_encoded = base64.b64encode(wav_io.read()).decode()
+    return f"data:audio/wav;base64,{b64_encoded}"
 
 # ==========================================
 # SIDEBAR CONTROLS
@@ -112,12 +116,12 @@ def generate_synthetic_audio_batch(count, language):
             "तंत्रज्ञानाच्या विकासामुळे शिक्षण क्षेत्रात क्रांती झाली आहे.",
             "पुणे हे महाराष्ट्राचे सांस्कृतिक आणि शैक्षणिक केंद्र मानले जाते.",
             "आम्ही मराठी भाषेमध्ये स्वयंचलित वाक् संश्लेषण प्रणाली विकसित करत आहोत.",
-            "पर्यटकांना कोकणातील नैसर्गिक सौंदर्य आणि समुद्रकिनारे खूप आवडतात."
+            "पर्यटकांना कोकणातील नैसर्गिक सौंदर्य और समुद्रकिनारे खूप आवडतात."
         ],
         "Gujarati": [
             "ગુજરાત તેની સમૃદ્ધ સાંસ્કૃતિક વારસો અને વેપારી માટે જાણીતું છે.",
             "આપણા દેશમાં તહેવારો ખૂબ જ ઉત્સાહથી ઉજવવામાં આવે છે.",
-            "અમદાવાદ સાબરમતી નદીના કિનારે વસેલું એક એક ઐતિહાસિક શહેર છે.",
+            "અમદાવાદ સાબરમતી નદીના કિનારે વસેલું એક ઐતિહાસિક શહેર છે.",
             "આર્ટિફિશિયલ ઇન્ટેલિજન્સ હવે વિવિધ ભાષાઓમાં ઝડપથી વિકસી રહી છે.",
             "ટેક્નોલોજીના ઉપયોગથી નાગરિકોના પ્રશ્નો સરળતાથી ઉકેલી શકાય છે."
         ],
@@ -290,10 +294,9 @@ with tab3:
             st.write(f"**SNR:** {row_data['snr_db']} dB | **WER:** {row_data['wer_percent']}% | **Status:** `{row_data['final_status']}`")
         
         with col_audio:
-            # High pitch tone for APPROVED, low tone for REJECTED
             tone_freq = 520 if row_data['final_status'] == "APPROVED_FOR_TRAINING" else 260
-            audio_data = get_synthetic_audio_bytes(duration=2.5, freq=tone_freq)
-            st.audio(audio_data, format='audio/wav')
+            audio_uri = get_synthetic_audio_bytes(duration=2.5, freq=tone_freq)
+            st.audio(audio_uri, format='audio/wav')
 
         st.divider()
         
