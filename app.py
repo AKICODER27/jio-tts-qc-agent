@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import time
+import io
+import wave
 
 # ==========================================
 # PAGE CONFIG & PROFESSIONAL THEMING
@@ -44,11 +46,28 @@ st.caption("Developed for Jio Platforms Ltd. OJT Case Study | Multi-Agent Orches
 st.divider()
 
 # ==========================================
+# AUDIO PREVIEW HELPER FUNCTION
+# ==========================================
+def get_synthetic_audio_bytes(duration=2.0, freq=440, sample_rate=22050):
+    """Generates an in-memory WAV audio preview stream for playback."""
+    t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+    audio_data = 0.5 * np.sin(2 * np.pi * freq * t)
+    audio_data = (audio_data * 32767).astype(np.int16)
+    
+    wav_io = io.BytesIO()
+    with wave.open(wav_io, 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(audio_data.tobytes())
+    wav_io.seek(0)
+    return wav_io.read()
+
+# ==========================================
 # SIDEBAR CONTROLS
 # ==========================================
 st.sidebar.header("⚙️ Agent Swarm Parameters")
 
-# Restricted to exact required languages
 selected_lang = st.sidebar.selectbox(
     "Target Language",
     ["Hindi", "Marathi", "Gujarati", "English"]
@@ -65,19 +84,17 @@ st.sidebar.divider()
 run_pipeline = st.sidebar.button("🚀 Execute Agent Orchestration", type="primary", use_container_width=True)
 
 # ==========================================
-# SYNTHETIC DATA GENERATOR (DYNAMIC PER LANGUAGE)
+# SYNTHETIC DATA GENERATOR
 # ==========================================
 def generate_synthetic_audio_batch(count, language):
-    # Unique seed per language string so metrics vary across languages
     seed_value = sum(ord(char) for char in language)
     np.random.seed(seed_value)
     
-    # Language-specific realistic noise & quality characteristics
     profiles = {
-        "Hindi": {"mean_snr": 23.5, "mean_wer": 11.2, "clip_prob": 0.05},      # Studio quality
-        "Marathi": {"mean_snr": 18.2, "mean_wer": 16.5, "clip_prob": 0.12},    # Field recordings (more noise)
-        "Gujarati": {"mean_snr": 21.0, "mean_wer": 13.8, "clip_prob": 0.08},   # Balanced
-        "English": {"mean_snr": 26.0, "mean_wer": 8.1, "clip_prob": 0.02}      # High fidelity benchmark
+        "Hindi": {"mean_snr": 23.5, "mean_wer": 11.2, "clip_prob": 0.05},
+        "Marathi": {"mean_snr": 18.2, "mean_wer": 16.5, "clip_prob": 0.12},
+        "Gujarati": {"mean_snr": 21.0, "mean_wer": 13.8, "clip_prob": 0.08},
+        "English": {"mean_snr": 26.0, "mean_wer": 8.1, "clip_prob": 0.02}
     }
     
     profile = profiles.get(language, {"mean_snr": 20.0, "mean_wer": 15.0, "clip_prob": 0.05})
@@ -100,7 +117,7 @@ def generate_synthetic_audio_batch(count, language):
         "Gujarati": [
             "ગુજરાત તેની સમૃદ્ધ સાંસ્કૃતિક વારસો અને વેપારી માટે જાણીતું છે.",
             "આપણા દેશમાં તહેવારો ખૂબ જ ઉત્સાહથી ઉજવવામાં આવે છે.",
-            "અમદાવાદ સાબરમતી નદીના કિનારે વસેલું એક ऐतिहासिक શહેર છે.",
+            "અમદાવાદ સાબરમતી નદીના કિનારે વસેલું એક એક ઐતિહાસિક શહેર છે.",
             "આર્ટિફિશિયલ ઇન્ટેલિજન્સ હવે વિવિધ ભાષાઓમાં ઝડપથી વિકસી રહી છે.",
             "ટેક્નોલોજીના ઉપયોગથી નાગરિકોના પ્રશ્નો સરળતાથી ઉકેલી શકાય છે."
         ],
@@ -259,9 +276,29 @@ with tab3:
         kpi4.metric("Target Language", selected_lang)
 
         st.divider()
+
+        # AUDIO CHUNK INSPECTOR & PLAYBACK PREVIEW
+        st.subheader("🔊 Audio Chunk Verification & Playback")
+        selected_chunk = st.selectbox("Select Chunk ID to Inspect & Listen", manifest['chunk_id'].tolist())
         
-        # Audio Signal Visualizer (Simulated Waveform)
-        st.subheader("🌊 Simulated Signal Waveform & Spectral Analytics")
+        row_data = manifest[manifest['chunk_id'] == selected_chunk].iloc[0]
+        
+        col_info, col_audio = st.columns([2, 1])
+        with col_info:
+            st.write(f"**Target Language:** {row_data['language']}")
+            st.write(f"**Reference Text:** {row_data['reference_text']}")
+            st.write(f"**SNR:** {row_data['snr_db']} dB | **WER:** {row_data['wer_percent']}% | **Status:** `{row_data['final_status']}`")
+        
+        with col_audio:
+            # High pitch tone for APPROVED, low tone for REJECTED
+            tone_freq = 520 if row_data['final_status'] == "APPROVED_FOR_TRAINING" else 260
+            audio_data = get_synthetic_audio_bytes(duration=2.5, freq=tone_freq)
+            st.audio(audio_data, format='audio/wav')
+
+        st.divider()
+        
+        # Audio Signal Visualizer
+        st.subheader("🌊 Signal Waveform & Spectral Analytics")
         chart_data = pd.DataFrame(
             np.random.randn(50, 2),
             columns=['Audio Waveform Amplitude', 'Spectral Noise Floor']
