@@ -2,9 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import time
-import io
-import wave
-import base64
+import streamlit.components.v1 as components
 
 # ==========================================
 # PAGE CONFIG & PROFESSIONAL THEMING
@@ -45,27 +43,6 @@ st.markdown("**Enterprise Autonomous Agent Swarm for Audio Signal Integrity, ASR
 st.caption("Developed for Jio Platforms Ltd. OJT Case Study | Multi-Agent Orchestration Framework")
 
 st.divider()
-
-# ==========================================
-# AUDIO PREVIEW HELPER FUNCTION (BASE64)
-# ==========================================
-def get_synthetic_audio_bytes(duration=2.0, freq=440, sample_rate=22050):
-    """Generates an in-memory WAV audio preview stream formatted as a base64 string for browser playback."""
-    t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
-    audio_data = 0.5 * np.sin(2 * np.pi * freq * t)
-    audio_data = (audio_data * 32767).astype(np.int16)
-    
-    wav_io = io.BytesIO()
-    with wave.open(wav_io, 'wb') as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(sample_rate)
-        wf.writeframes(audio_data.tobytes())
-    wav_io.seek(0)
-    
-    # Encode to base64 so HTML5 audio renders reliably on Streamlit Cloud
-    b64_encoded = base64.b64encode(wav_io.read()).decode()
-    return f"data:audio/wav;base64,{b64_encoded}"
 
 # ==========================================
 # SIDEBAR CONTROLS
@@ -116,7 +93,7 @@ def generate_synthetic_audio_batch(count, language):
             "तंत्रज्ञानाच्या विकासामुळे शिक्षण क्षेत्रात क्रांती झाली आहे.",
             "पुणे हे महाराष्ट्राचे सांस्कृतिक आणि शैक्षणिक केंद्र मानले जाते.",
             "आम्ही मराठी भाषेमध्ये स्वयंचलित वाक् संश्लेषण प्रणाली विकसित करत आहोत.",
-            "पर्यटकांना कोकणातील नैसर्गिक सौंदर्य और समुद्रकिनारे खूप आवडतात."
+            "पर्यटकांना कोकणातील नैसर्गिक सौंदर्य आणि समुद्रकिनारे खूप आवडतात."
         ],
         "Gujarati": [
             "ગુજરાત તેની સમૃદ્ધ સાંસ્કૃતિક વારસો અને વેપારી માટે જાણીતું છે.",
@@ -281,22 +258,42 @@ with tab3:
 
         st.divider()
 
-        # AUDIO CHUNK INSPECTOR & PLAYBACK PREVIEW
+        # AUDIO CHUNK INSPECTOR & PLAYBACK PREVIEW WITH STATUS BADGES
         st.subheader("🔊 Audio Chunk Verification & Playback")
         selected_chunk = st.selectbox("Select Chunk ID to Inspect & Listen", manifest['chunk_id'].tolist())
         
         row_data = manifest[manifest['chunk_id'] == selected_chunk].iloc[0]
         
+        # Visual Status Callout Box
+        if row_data['final_status'] == "APPROVED_FOR_TRAINING":
+            st.success(f"✅ **Status: APPROVED FOR TRAINING** — High signal fidelity and low phonetic word error rate.")
+        else:
+            st.error(f"❌ **Status: REJECTED** — Failed Quality Gates! \n* **Signal Notes:** {row_data['audio_qc_notes']} \n* **Alignment Notes:** {row_data['alignment_notes']}")
+
         col_info, col_audio = st.columns([2, 1])
         with col_info:
             st.write(f"**Target Language:** {row_data['language']}")
             st.write(f"**Reference Text:** {row_data['reference_text']}")
-            st.write(f"**SNR:** {row_data['snr_db']} dB | **WER:** {row_data['wer_percent']}% | **Status:** `{row_data['final_status']}`")
+            st.markdown(f"**DSP Metrics:** SNR: `{row_data['snr_db']} dB` | WER: `{row_data['wer_percent']}%` | Sample Rate: `{row_data['sample_rate']} Hz`")
         
         with col_audio:
-            tone_freq = 520 if row_data['final_status'] == "APPROVED_FOR_TRAINING" else 260
-            audio_uri = get_synthetic_audio_bytes(duration=2.5, freq=tone_freq)
-            st.audio(audio_uri, format='audio/wav')
+            st.markdown("**Click to Play Reference TTS Audio:**")
+            lang_code = {"Hindi": "hi-IN", "Marathi": "mr-IN", "Gujarati": "gu-IN", "English": "en-US"}.get(row_data['language'], "en-US")
+            safe_text = row_data['reference_text'].replace("'", "\\'")
+            
+            # Browser Speech Synthesis Button Component
+            tts_html = f"""
+            <div style="padding: 10px; background: #1a1f2c; border-radius: 8px; border: 1px solid #2e364f; text-align: center;">
+                <button onclick="
+                    const utterance = new SpeechSynthesisUtterance('{safe_text}');
+                    utterance.lang = '{lang_code}';
+                    window.speechSynthesis.speak(utterance);
+                " style="background: #00d2ff; color: #0e1117; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;">
+                    🔊 Speak Reference Sentence
+                </button>
+            </div>
+            """
+            components.html(tts_html, height=70)
 
         st.divider()
         
